@@ -1,16 +1,55 @@
-# This is a sample Python script.
+import firebase_admin
+from firebase_admin import credentials
+from firebase_admin import firestore
 
-# Press F5 to execute it or replace it with your code.
-# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
+import discord
+import requests
+import json
+
+client = discord.Client()
 
 
-def print_hi(name):
-    # Use a breakpoint in the code line below to debug your script.
-    print(f'Hi, {name}')  # Press Ctrl+F8 to toggle the breakpoint.
+cred = credentials.ApplicationDefault()
+firebase_admin.initialize_app(cred, {
+    'projectId': 'suhbot-ff7d8',
+})
+
+db = firestore.client()
 
 
-# Press the green button in the gutter to run the script.
-if __name__ == '__main__':
-    print_hi('PyCharm')
+def get_quote():
+    response = requests.get("https://zenquotes.io/api/random")
+    json_data = json.loads(response.text)
+    quote = json_data[0]['q'] + " -" + json_data[0]['a']
+    return quote
 
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
+
+def get_joke():
+    response = requests.get('https://official-joke-api.appspot.com/random_joke')
+    json_data = json.loads(response.text)
+    joke = json_data["setup"] + " " + json_data["punchline"]
+    return joke
+
+
+@client.event
+async def on_ready():
+    print('Logged in as {0.user}'.format(client))
+
+
+@client.event
+async def on_message(message):
+    if message.author == client.user:
+        return
+
+    if message.content.startswith('$hello'):
+        await message.channel.send('Hello!')
+
+    if message.content.startswith('$inspire'):
+        await message.channel.send(get_quote())
+
+    if message.content.startswith("$joke"):
+        await message.channel.send(get_joke())
+
+
+
+client.run('Nzc1NTQ1MTMyMDY5NTUyMTI4.X6n4sA.1zCKZ4Qka8wBzypwWnv7GosIO5U')
