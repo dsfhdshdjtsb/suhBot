@@ -77,6 +77,7 @@ async def joke(ctx):
 async def quote(ctx):
     await ctx.send(get_quote())
 
+
 @client.command()
 async def flip(ctx):
     flips = ["heads", "tails"]
@@ -111,35 +112,65 @@ async def ball(ctx):
 
 
 @client.command()
-async def guessflip(ctx, arg1):
+async def gflip(ctx, arg1):
     flips = ["heads", "tails"]
     guess = arg1.lower()
 
     if guess in flips:
+        win = False
         doc_ref = db.collection(u'users').document(f'{ctx.author}')
         doc = doc_ref.get()
 
         bot_guess = flips[randint(0, 1)]
-        await ctx.send("Your call is: " + guess + "\n")
-        await ctx.send("The coin is: " + bot_guess + "\n")
+
         if guess == bot_guess:
-            await ctx.send("You guess was correct!")
+            win = True
             if doc.exists:
                 doc_ref.set({
+                    u'user': f'{ctx.author}',
                     u'score': doc.get("score") + 1
                 })
             else:
                 doc_ref.set({
+                    u'user': f'{ctx.author}',
                     u'score': 1
                 })
         else:
-            await ctx.send("Your guess was not correct")
             if not doc.exists:
                 doc_ref.set({
+                    u'user': f'{ctx.author}',
                     u'score': 0
                 })
         doc = doc_ref.get()
-        await ctx.send("Your overall score is: " + f'{doc.get("score")}')
+
+        if win:
+            await ctx.send("Your call is: " + guess + "\n" +
+                           "The coin is: " + bot_guess + "\n" +
+                           "Your guess was correct!" + "\n" +
+                           "Your overall score is: " + f'{doc.get("score")}')
+        else:
+            await ctx.send("Your call is: " + guess + "\n" +
+                           "The coin is: " + bot_guess + "\n" +
+                           "Your guess was not correct" + "\n" +
+                           "Your overall score is: " + f'{doc.get("score")}')
+
+
+@client.command()
+async def flipscore(ctx):
+    doc_ref = db.collection(u'users').document(f'{ctx.author}')
+    doc = doc_ref.get()
+    if doc.exists:
+        await ctx.send("Your flip score is: " + f'{doc.get("score")}')
+    else:
+        await ctx.send("You do not have a flip score :(")
+
+
+@client.command()
+async def flipleaderboard(ctx):
+    docs = db.collection(u'users').stream()
+
+    for doc in docs:
+        await ctx.send(f'{doc.get("user")}       : {doc.get("score")}')
 
 
 @client.event
