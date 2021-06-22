@@ -110,9 +110,13 @@ async def ball(ctx):
 
 
 @client.command()
-async def gflip(ctx, call, amount = 1):
+async def gflip(ctx, call="", amount=1):
+    if call == "":
+        await ctx.send("```Coin call required (ex: gflip heads)```")
+
     flips = ["heads", "tails"]
     guess = f"{call.lower()}"
+    amount = int(amount)
 
     if guess in flips:
         win = False
@@ -126,34 +130,30 @@ async def gflip(ctx, call, amount = 1):
             amount = 0
             doc = doc_ref.get()
 
+        if not doc.exists:
+            doc_ref.set({
+                u'user': f'{ctx.author}',
+                u'score': 0
+            })
+            doc = doc_ref.get()
+
         bot_guess = flips[randint(0, 1)]
 
         if guess == bot_guess and doc.get("score") - amount >= -100:
             win = True
-            if doc.exists:
-                doc_ref.set({
-                    u'user': f'{ctx.author}',
-                    u'score': doc.get("score") + amount
-                })
-            else:
-                doc_ref.set({
-                    u'user': f'{ctx.author}',
-                    u'score': 1
-                })
+            doc_ref.set({
+                u'user': f'{ctx.author}',
+                u'score': doc.get("score") + amount
+            })
         elif doc.get("score") - amount >= -100:
-            if doc.exists:
-                doc_ref.set({
-                    u'user': f'{ctx.author}',
-                    u'score': doc.get("score") - amount
-                })
-            if not doc.exists:
-                doc_ref.set({
-                    u'user': f'{ctx.author}',
-                    u'score': 0
-                })
+            doc_ref.set({
+                u'user': f'{ctx.author}',
+                u'score': doc.get("score") - amount
+            })
         else:
             await ctx.send("```You do not have enough points```")
             return
+
 
         doc = doc_ref.get()
 
