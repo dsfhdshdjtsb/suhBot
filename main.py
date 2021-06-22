@@ -110,45 +110,62 @@ async def ball(ctx):
 
 
 @client.command()
-async def gflip(ctx, arg1):
+async def gflip(ctx, call, amount = 1):
     flips = ["heads", "tails"]
-    guess = f"{arg1.lower()}"
+    guess = f"{call.lower()}"
 
     if guess in flips:
         win = False
         doc_ref = db.collection(u'users').document(f'{ctx.author}')
         doc = doc_ref.get()
 
+        if doc.get("score") == -100:
+            doc_ref.set({
+                u'score': -99
+            }, merge=True)
+            amount = 0
+            doc = doc_ref.get()
+
         bot_guess = flips[randint(0, 1)]
 
-        if guess == bot_guess:
+        if guess == bot_guess and doc.get("score") - amount >= -100:
             win = True
             if doc.exists:
                 doc_ref.set({
                     u'user': f'{ctx.author}',
-                    u'score': doc.get("score") + 1
+                    u'score': doc.get("score") + amount
                 })
             else:
                 doc_ref.set({
                     u'user': f'{ctx.author}',
                     u'score': 1
                 })
-        else:
+        elif doc.get("score") - amount >= -100:
+            if doc.exists:
+                doc_ref.set({
+                    u'user': f'{ctx.author}',
+                    u'score': doc.get("score") - amount
+                })
             if not doc.exists:
                 doc_ref.set({
                     u'user': f'{ctx.author}',
                     u'score': 0
                 })
+        else:
+            await ctx.send("```You do not have enough points```")
+            return
+
         doc = doc_ref.get()
 
         score = f"{doc.get('score')}"
         if win:
-            score = score + "(+1)"
+            score = score + f"(+{amount})"
             await ctx.send(f"```{'Your call' : <20}{guess: >20}\n"
                            f"{'The coin' : <20}{bot_guess: >20}\n\n"
                            f"{'Total score: ' : <20}{score: >20}```")
 
         else:
+            score = score + f"(-{amount})"
             await ctx.send(f"```{'Your call' : <20}{guess: >20}\n"
                            f"{'The coin' : <20}{bot_guess: >20}\n\n"
                            f"{'Total score: ' : <20}{score: >20}```")
@@ -175,6 +192,45 @@ async def gflipleaderboard(ctx):
         message = message + f"{user: <20}{score: >20}\n"
 
     await ctx.send("```" + message + "```")
+
+
+@client.command()
+async def give(ctx, target, amount):
+    author = f"{ctx.author}"  # took 10 hours to figure out
+    target = f"{target}"
+    amount = int(amount)
+
+    user_doc_ref = db.collection(u'users').document(f'{author}')
+    user_doc = user_doc_ref.get()
+
+    target_doc_ref = db.collection(u'users').document(f'{target}')
+    target_doc = target_doc_ref.get()
+
+    if user_doc.exists and target_doc.exists:
+        if user_doc.get("score") >= amount > 0:
+            user_doc_ref.set({
+                u'score': user_doc.get("score") - amount
+            }, merge=True)
+            target_doc_ref.set({
+                u'score': target_doc.get("score") + amount
+            }, merge=True)
+            user_doc = user_doc_ref.get()  # update docs
+            target_doc = target_doc_ref.get()
+
+            user_score = f"{user_doc.get('score')}(-{amount})"
+            target_score = f"{target_doc.get('score')}(+{amount})"
+
+            await ctx.send(f"```{'User' : <20}{'Score' : >20}\n"
+                           f"{author: <20}{user_score: >20}\n"
+                           f"{target: <20}{target_score: >20}\n\n"
+                           f"{author} has given {amount} points to {target}```")
+
+        elif user_doc.get("score") < amount:
+            await ctx.send("```You do not have enough points```")
+        else:
+            await ctx.send("```Amount must be greater than 0```")
+    else:
+        await ctx.send("```Either you or the target person do not exist```")
 
 
 @client.event
