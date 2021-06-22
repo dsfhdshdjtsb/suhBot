@@ -117,6 +117,7 @@ async def gflip(ctx, call="", amount=1):
     flips = ["heads", "tails"]
     guess = f"{call.lower()}"
     amount = int(amount)
+    bot_guess = flips[randint(0, 1)]
 
     if guess in flips:
         win = False
@@ -127,7 +128,8 @@ async def gflip(ctx, call="", amount=1):
             doc_ref.set({
                 u'score': -99
             }, merge=True)
-            amount = 0
+            amount = 1
+            bot_guess = guess
             doc = doc_ref.get()
 
         if not doc.exists:
@@ -136,8 +138,6 @@ async def gflip(ctx, call="", amount=1):
                 u'score': 0
             })
             doc = doc_ref.get()
-
-        bot_guess = flips[randint(0, 1)]
 
         if guess == bot_guess and doc.get("score") - amount >= -100:
             win = True
@@ -153,7 +153,6 @@ async def gflip(ctx, call="", amount=1):
         else:
             await ctx.send("```You do not have enough points```")
             return
-
 
         doc = doc_ref.get()
 
