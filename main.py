@@ -5,8 +5,6 @@ from discord.ext import commands
 from firebase_admin import credentials
 from firebase_admin import firestore
 
-import discord
-from discord.ext.commands import bot
 import requests
 import json
 
@@ -114,7 +112,7 @@ async def ball(ctx):
 @client.command()
 async def gflip(ctx, arg1):
     flips = ["heads", "tails"]
-    guess = arg1.lower()
+    guess = f"{arg1.lower()}"
 
     if guess in flips:
         win = False
@@ -143,34 +141,40 @@ async def gflip(ctx, arg1):
                 })
         doc = doc_ref.get()
 
+        score = f"{doc.get('score')}"
         if win:
-            await ctx.send("Your call is: " + guess + "\n" +
-                           "The coin is: " + bot_guess + "\n" +
-                           "Your guess was correct!" + "\n" +
-                           "Your overall score is: " + f'{doc.get("score")}')
+            score = score + "(+1)"
+            await ctx.send(f"```{'Your call' : <20}{guess: >20}\n"
+                           f"{'The coin' : <20}{bot_guess: >20}\n\n"
+                           f"{'Total score: ' : <20}{score: >20}```")
+
         else:
-            await ctx.send("Your call is: " + guess + "\n" +
-                           "The coin is: " + bot_guess + "\n" +
-                           "Your guess was not correct" + "\n" +
-                           "Your overall score is: " + f'{doc.get("score")}')
+            await ctx.send(f"```{'Your call' : <20}{guess: >20}\n"
+                           f"{'The coin' : <20}{bot_guess: >20}\n\n"
+                           f"{'Total score: ' : <20}{score: >20}```")
 
 
 @client.command()
-async def flipscore(ctx):
+async def gflipscore(ctx):
     doc_ref = db.collection(u'users').document(f'{ctx.author}')
     doc = doc_ref.get()
     if doc.exists:
-        await ctx.send("Your flip score is: " + f'{doc.get("score")}')
+        await ctx.send(f"```{'User' : <20}{'Score' : >20}\n{doc.get('user'): <20}{doc.get('score'): >20}```")
     else:
-        await ctx.send("You do not have a flip score :(")
+        await ctx.send("```You do not have a flip score :(```")
 
 
-@client.command()
-async def flipleaderboard(ctx):
+@client.command(aliases=['gfliplb', 'gflipscores'])
+async def gflipleaderboard(ctx):
     docs = db.collection(u'users').stream()
 
+    message = f"{'User' : <20}{'Score' : >20}\n"
     for doc in docs:
-        await ctx.send(f'{doc.get("user")}       : {doc.get("score")}')
+        user = f"{doc.get('user')}"
+        score = f"{doc.get('score')}"
+        message = message + f"{user: <20}{score: >20}\n"
+
+    await ctx.send("```" + message + "```")
 
 
 @client.event
