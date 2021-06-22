@@ -130,7 +130,7 @@ async def guessflip(ctx, arg1):
                 })
             else:
                 doc_ref.set({
-                    u'score': 0
+                    u'score': 1
                 })
         else:
             await ctx.send("Your guess was not correct")
