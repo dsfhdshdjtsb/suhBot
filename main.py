@@ -119,24 +119,28 @@ async def gflip(ctx, call="", amount=1):
     amount = int(amount)
     bot_guess = flips[randint(0, 1)]
 
+    if amount <= 0:
+        await ctx.send("```Number must be > 0```")
+        return
+
     if guess in flips:
         win = False
         doc_ref = db.collection(u'users').document(f'{ctx.author}')
         doc = doc_ref.get()
-
-        if doc.get("score") == -100:
-            doc_ref.set({
-                u'score': -99
-            }, merge=True)
-            amount = 1
-            bot_guess = guess
-            doc = doc_ref.get()
 
         if not doc.exists:
             doc_ref.set({
                 u'user': f'{ctx.author}',
                 u'score': 0
             })
+            doc = doc_ref.get()
+
+        if doc.get("score") <= -100:
+            doc_ref.set({
+                u'score': -100
+            }, merge=True)
+            amount = 1
+            bot_guess = guess
             doc = doc_ref.get()
 
         if guess == bot_guess and doc.get("score") - amount >= -100:
@@ -168,6 +172,8 @@ async def gflip(ctx, call="", amount=1):
             await ctx.send(f"```{'Your call' : <20}{guess: >20}\n"
                            f"{'The coin' : <20}{bot_guess: >20}\n\n"
                            f"{'Total score: ' : <20}{score: >20}```")
+    else:
+        await ctx.send("```Invalid coin call(format is gflip [heads/tails] [numerial amount])```")
 
 
 @client.command()
@@ -230,6 +236,23 @@ async def give(ctx, target, amount):
             await ctx.send("```Amount must be greater than 0```")
     else:
         await ctx.send("```Either you or the target person do not exist```")
+
+
+# future note: make it so u must have >100 points in order to give away points
+@client.command()
+async def declarebankruptcy(ctx):
+    doc_ref = db.collection(u'users').document(f"{ctx.author}")
+    doc = doc_ref.get()
+
+    if doc.exists and doc.get("score") <= -90:
+        doc_ref.set({
+            u'score': 0
+        }, merge=True)
+        await ctx.send("```Your balance has been reset to 0```")
+    elif not doc.exists:
+        await ctx.send("```You do exist in the database```")
+    else:
+        await ctx.send("```You score must be below -90 to declare bankruptcy```")
 
 
 @client.event
