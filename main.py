@@ -1,10 +1,10 @@
 from random import randint
-
+import yfinance as yf
 import firebase_admin
 from discord.ext import commands
 from firebase_admin import credentials
 from firebase_admin import firestore
-
+from Share import Share
 import requests
 import json
 
@@ -163,25 +163,25 @@ async def gflip(ctx, call="", amount=1):
         score = f"{doc.get('score')}"
         if win:
             score = score + f"(+{amount})"
-            await ctx.send(f"```{'Your call' : <20}{guess: >20}\n"
-                           f"{'The coin' : <20}{bot_guess: >20}\n\n"
-                           f"{'Total score: ' : <20}{score: >20}```")
+            await ctx.send(f"```{'Your call' : <15}{guess: >15}\n"
+                           f"{'The coin' : <15}{bot_guess: >15}\n\n"
+                           f"{'Total score: ' : <15}{score: >15}```")
 
         else:
             score = score + f"(-{amount})"
-            await ctx.send(f"```{'Your call' : <20}{guess: >20}\n"
-                           f"{'The coin' : <20}{bot_guess: >20}\n\n"
-                           f"{'Total score: ' : <20}{score: >20}```")
+            await ctx.send(f"```{'Your call' : <15}{guess: >15}\n"
+                           f"{'The coin' : <15}{bot_guess: >15}\n\n"
+                           f"{'Total score: ' : <15}{score: >15}```")
     else:
         await ctx.send("```Invalid coin call(format is gflip [heads/tails] [numerial amount])```")
 
 
-@client.command()
+@client.command(aliases=["score", "flipscore"])
 async def gflipscore(ctx):
     doc_ref = db.collection(u'users').document(f'{ctx.author}')
     doc = doc_ref.get()
     if doc.exists:
-        await ctx.send(f"```{'User' : <20}{'Score' : >20}\n{doc.get('user'): <20}{doc.get('score'): >20}```")
+        await ctx.send(f"```{'User' : <15}{'Score' : >15}\n{doc.get('user'): <15}{doc.get('score'): >15}```")
     else:
         await ctx.send("```You do not have a flip score :(```")
 
@@ -190,11 +190,11 @@ async def gflipscore(ctx):
 async def gflipleaderboard(ctx):
     docs = db.collection(u'users').stream()
 
-    message = f"{'User' : <20}{'Score' : >20}\n"
+    message = f"{'User' : <15}{'Score' : >15}\n"
     for doc in docs:
         user = f"{doc.get('user')}"
         score = f"{doc.get('score')}"
-        message = message + f"{user: <20}{score: >20}\n"
+        message = message + f"{user: <15}{score: >15}\n"
 
     await ctx.send("```" + message + "```")
 
@@ -225,9 +225,9 @@ async def give(ctx, target, amount):
             user_score = f"{user_doc.get('score')}(-{amount})"
             target_score = f"{target_doc.get('score')}(+{amount})"
 
-            await ctx.send(f"```{'User' : <20}{'Score' : >20}\n"
-                           f"{author: <20}{user_score: >20}\n"
-                           f"{target: <20}{target_score: >20}\n\n"
+            await ctx.send(f"```{'User' : <15}{'Score' : >15}\n"
+                           f"{author: <15}{user_score: >15}\n"
+                           f"{target: <15}{target_score: >15}\n\n"
                            f"{author} has given {amount} points to {target}```")
 
         elif user_doc.get("score") < amount:
@@ -253,6 +253,103 @@ async def declarebankruptcy(ctx):
         await ctx.send("```You do exist in the database```")
     else:
         await ctx.send("```You score must be below -90 to declare bankruptcy```")
+
+
+@client.command()
+async def getprice(ctx, *tickers):
+    message = f"```{'Stock' : <15}{'Price' : >15}\n"
+    for ticker in tickers:
+        ticker_yahoo = yf.Ticker(ticker)
+        data = ticker_yahoo.history()
+        last_quote = (data.tail(1)['Close'].iloc[0])
+        message += f"{ticker: <15} {last_quote:>15.2f}\n"
+    await ctx.send(message + "```")
+
+
+@client.command()
+async def buy(ctx, name, amount):
+    try:
+        name = name.upper()
+        amount = int(amount)
+        ticker = yf.Ticker(name)
+    except:
+        await ctx.send("```Error```")
+    else:
+        if amount <= 0:
+            await ctx.send("```amount must be greater than 0```")
+            return
+        doc_ref = db.collection(u'users').document(f'{ctx.author}')
+        score = doc_ref.get().get("score")
+
+        data = ticker.history()
+        price = (data.tail(1)['Close'].iloc[0])
+        price = int(price * 100) / 100.0
+
+        stock_doc_ref = doc_ref.collection(u'stocks').document(f'{name}')
+        stock_doc = stock_doc_ref.get()
+        if score >= amount * price:
+            if not stock_doc.exists:
+                stock_doc_ref.set({
+                    u'ticker': f"{name}",
+                    u'amount': amount,
+                    u'price': price
+                })
+                doc_ref.set({
+                    u'score': score - (amount * price)
+                }, merge=True)
+                await ctx.send(
+                    f"```{amount} shares of {name} at ${price} have been bought (${amount * price} total)```")
+
+            else:
+                stock_doc_ref.set({
+                    u'amount': stock_doc.get("amount") + amount,
+                    u'price': (stock_doc.get("price") + price) / 2.0
+                }, merge=True)
+                doc_ref.set({
+                    u'score': score - (amount * price)
+                }, merge=True)
+                await ctx.send(
+                    f"```{amount} shares of {name} at ${price} have been bought (${amount * price} total)```")
+        else:
+            await ctx.send("```You do not have enough points```")
+
+
+@client.command()
+async def profile(ctx):
+    stocks = db.collection(u'users').document(f"{ctx.author}").collection(u'stocks').stream()
+
+    message = f"```{'Ticker' : <15}{'Amount' : ^15}{'Balance': ^15}" \
+              f"{'% gain/loss': ^15}{'Purchase Price': ^15}{'Current Price': >15}\n"
+
+    total_sum = 0
+    amount_sum = 0
+    purc_total_sum = 0
+    count = 0
+    for stock in stocks:
+        amount_num = stock.get(u'amount')
+        price_num = stock.get(u'price')
+        ticker_name = f"{stock.get(u'ticker')}"
+        amount = f"{amount_num}"
+        price = f"{price_num}"
+
+        ticker = yf.Ticker(ticker_name)
+        data = ticker.history()
+        current_price = (data.tail(1)['Close'].iloc[0])
+        current_price = int(current_price * 100) / 100.0
+
+        value = int(amount_num * current_price * 100) / 100.0
+        percent = -int((price_num * amount_num - current_price * amount_num) * 10000) / 100.0
+
+        message += f"{ticker_name: <15}{amount: ^15}{value: ^15}{percent: ^15}{price: ^15}{current_price: >15}\n"
+        total_sum += value
+        purc_total_sum += amount_num * price_num
+        amount_sum += amount_num
+        count += 1
+
+    total_percent = -int(((purc_total_sum - total_sum) / purc_total_sum) * 10000) / 100
+    message += f"\n" \
+               f"{'Total': <15}{amount_sum: ^15}{(int(total_sum * 100) / 100.0): ^15}{total_percent: ^15}"
+    await ctx.send(message + "```")
 
 
 @client.event
